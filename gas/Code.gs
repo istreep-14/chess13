@@ -10,6 +10,63 @@ function openSetup() {}
 /** Debug helpers */
 function debugTest() {}
 
+function refreshArchivesSheet() {
+  var username = ConfigManager.getUsername();
+  if (!username) {
+    UtilitiesEx.logError("Config username is empty", null);
+    return;
+  }
+
+  var spreadsheetId = ConfigManager.getSpreadsheetId();
+  var archivesSheet = SheetManager.getOrCreateSheet(spreadsheetId, "Archives");
+  SheetManager.clearSheet(archivesSheet);
+  var header = ["year","month","archive_url","sheet_name","exists"];
+  SheetManager.writeRows(archivesSheet, 1, 1, [header]);
+
+  var urls;
+  try {
+    urls = ChessComAPI.fetchArchivesIndex(username);
+  } catch (e) {
+    UtilitiesEx.logError("Failed to fetch archives index", e);
+    urls = [];
+  }
+  if (!urls || urls.length === 0) {
+    UtilitiesEx.logInfo("No archive URLs returned", null);
+    return;
+  }
+
+  var existingNames = SheetManager.getAllSheetNames(spreadsheetId);
+  var rows = [];
+  for (var i = 0; i < urls.length; i++) {
+    var u = urls[i];
+    var match = u.match(/\/(\d{4})\/(\d{2})$/);
+    var year = "";
+    var month = "";
+    var sheetName = "";
+    var exists = false;
+    if (match) {
+      year = match[1];
+      month = match[2];
+      sheetName = year.slice(-2) + "_" + month;
+      exists = existingNames.indexOf(sheetName) !== -1;
+    }
+    rows.push([year, month, u, sheetName, exists ? "TRUE" : "FALSE"]);
+  }
+
+  rows.sort(function (a, b) {
+    var ay = parseInt(a[0], 10) || 0;
+    var by = parseInt(b[0], 10) || 0;
+    if (ay !== by) return by - ay;
+    var am = parseInt(a[1], 10) || 0;
+    var bm = parseInt(b[1], 10) || 0;
+    return bm - am;
+  });
+
+  if (rows.length) {
+    SheetManager.writeRows(archivesSheet, 2, 1, rows);
+  }
+}
+
 function runFetchCurrentMonth() {
   var username = ConfigManager.getUsername();
   if (!username) {
